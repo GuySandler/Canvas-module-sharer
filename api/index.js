@@ -5,15 +5,47 @@ const dotenv = require("dotenv");
 
 dotenv.config();
 const app = express();
-const port = process.env.port;
+const port = process.env.port || 3001;
 app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
+const db = require('better-sqlite3')('database.db');
+
+const initDatabase = () => {
+    try {
+        db.exec(`
+            CREATE TABLE IF NOT EXISTS modules (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                course TEXT NOT NULL,
+                teacher TEXT NOT NULL,
+                content TEXT NOT NULL,
+                password TEXT NOT NULL,
+                apikey TEXT NOT NULL,
+                canvasurl TEXT NOT NULL,
+                courseid TEXT NOT NULL,
+                createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+        console.log("Database initialized successfully");
+    } catch (error) {
+        console.error("Database initialization error:", error);
+    }
+};
+initDatabase();
 
 app.get("/", (req, res) => {
-    res.sendFile(__dirname + "/../frontend/index.html");
+    res.sendFile(__dirname + "/frontend/index.html");
+});
+app.get("/admin", (req, res) => {
+    if (req.query.password == process.env.adminpassword) {
+        res.sendFile(__dirname + "/frontend/admin.html");
+    }
+    else {
+        res.status(403).json({ error: "Forbidden", message: "Invalid password" });
+    }
 });
 
 app.listen(port, () => {
-    console.log(`Example app listening on port ${port}`);
+    console.log(`listening on port ${port}`);
 });
