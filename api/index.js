@@ -45,6 +45,9 @@ app.get("/admin", (req, res) => {
         res.status(403).json({ error: "Forbidden", message: "Invalid password" });
     }
 });
+app.get("/modules", (req, res) => {
+    if (req.query.id && !isNaN(req.query.id)) {
+
 
 app.listen(port, () => {
     console.log(`listening on port ${port}`);
