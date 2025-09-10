@@ -19,7 +19,6 @@ const initDatabase = () => {
                 course TEXT NOT NULL,
                 teacher TEXT NOT NULL,
                 content TEXT NOT NULL,
-                password TEXT NOT NULL,
                 apikey TEXT NOT NULL,
                 canvasurl TEXT NOT NULL,
                 courseid TEXT NOT NULL,
@@ -46,8 +45,40 @@ app.get("/admin", (req, res) => {
     }
 });
 app.get("/modules", (req, res) => {
-    if (req.query.id && !isNaN(req.query.id)) {
+    if (!req.query.id || req.query.id.trim() === "" || isNaN(req.query.id) || parseInt(req.query.id, 10) <= 0) {
+        res.status(400).send("Invalid or missing id parameter. " + req.query.id);
+        return;
+    }
+    const id = parseInt(req.query.id, 10);
+    res.send("TODO get module: " + id);
+});
+app.get("/new", (req, res) => {
+    res.sendFile(__dirname + "/frontend/new.html");
+});
 
+// api
+async function getCanvasModules(canvasURL, courseID, canvasAPIkey, teacher, courseName) {
+    const url = `${canvasURL}/api/v1/courses/${courseID}/modules?include[]=items`;
+    const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+            'Authorization': `Bearer ${canvasAPIkey}`,
+            'Content-Type': 'application/json'
+        }
+    });
+    const modules = await response.json();
+    // add modules[0] to content
+    db.exec(`INSERT INTO modules (course, teacher, content, apikey, canvasurl, courseid) VALUES (?, ?, ?, ?, ?, ?)`,
+        [courseName, teacher, modules[0], canvasAPIkey, canvasURL, courseID]
+    );
+    return modules;
+}
+app.get("/newmodule", async (req, res) => {
+    const { canvasURL, courseID, canvasAPIkey, teacher, courseName } = req.query;
+    // console.log(canvasURL, courseID, canvasAPIkey);
+    const modules = await getCanvasModules(canvasURL, courseID, canvasAPIkey, teacher, courseName);
+    res.send(modules);
+})
 
 app.listen(port, () => {
     console.log(`listening on port ${port}`);

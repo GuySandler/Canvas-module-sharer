@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Module</title>
+</head>
+<body>
+    <h1>Make a new shared module</h1>
+    <form action="/newmodule" meathod="post">
+        <label for="canvasURL">Canvas URL:</label>
+        <input type="text" id="canvasURL" name="canvasURL" required placeholder="https://canvas.instructure.com">
+        <label for="courseID">Course ID:</label>
+        <input type="number" id="courseID" name="courseID" required placeholder="17679">
+        <label for="canvasAPIkey">Canvas API Key:</label>
+        <input type="text" id="canvasAPIkey" name="canvasAPIkey" required placeholder="16797~4...">
+        <label for="teacher">Teacher:</label>
+        <input type="text" id="teacher" name="teacher" required placeholder="Petreas">
+        <label for="courseName">Course Name:</label>
+        <input type="text" id="courseName" name="courseName" required placeholder
+        <button type="submit">Create Module</button>
+    </form>
+</body>
+<style>
+    form {
+        display: flex;
+        flex-direction: column;
+        width: 300px;
+    }
+    label, input {
+        margin-bottom: 10px;
+    }
+</style>
+</html>
