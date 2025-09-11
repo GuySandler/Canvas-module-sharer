@@ -67,10 +67,9 @@ async function getCanvasModules(canvasURL, courseID, canvasAPIkey, teacher, cour
         }
     });
     const modules = await response.json();
-    // add modules[0] to content
-    db.exec(`INSERT INTO modules (course, teacher, content, apikey, canvasurl, courseid) VALUES (?, ?, ?, ?, ?, ?)`,
-        [courseName, teacher, modules[0], canvasAPIkey, canvasURL, courseID]
-    );
+    const prepedInster = db.prepare(`INSERT INTO modules (course, teacher, content, apikey, canvasurl, courseid) VALUES (?, ?, ?, ?, ?, ?)`);
+    prepedInster.run(courseName, teacher, JSON.stringify(modules[0]), canvasAPIkey, canvasURL, courseID);
+    
     return modules;
 }
 app.get("/newmodule", async (req, res) => {
@@ -79,6 +78,32 @@ app.get("/newmodule", async (req, res) => {
     const modules = await getCanvasModules(canvasURL, courseID, canvasAPIkey, teacher, courseName);
     res.send(modules);
 })
+async function updateModules(id) {
+    // only select needed vars
+    const row = db.prepare('SELECT canvasurl, courseid, apikey, FROM modules WHERE id = ?').get(id);
+    if (!row) {
+        console.error("No module found with id:", id);
+        return "No module found";
+    }
+    const { canvasurl, courseid, apikey } = row;
+    const url = `${canvasurl}/api/v1/courses/${courseid}/modules?include[]=items`;
+    const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+            'Authorization': `Bearer ${apikey}`,
+            'Content-Type': 'application/json'
+        }
+    });
+    const dbprep = db.prepare('UPDATE modules SET content = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?');
+    const modules = await response.json();
+    dbprep.run(JSON.stringify(modules[0]), id);
+    return "Module updated";
+};
+app.put("/updatemodules", async (req, res) => {
+    const { id } = req.query;
+    const response = await updateModules(id);
+    res.send(response);
+});
 
 app.listen(port, () => {
     console.log(`listening on port ${port}`);
