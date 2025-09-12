@@ -6,5 +6,40 @@
     <title>Admin Page</title>
 </head>
 <body>
+    <h1>Admin Page</h1>
+    <label for="updateModuleID">Update module by ID: </label>
+    <input type="number" id="updateModuleID" name="updateModuleID" placeholder="1">
+    <button onclick="goToUpdateModule()">Go</button>
 </body>
+<script>
+    function goToUpdateModule() {
+        const moduleID = document.getElementById("updateModuleID").value;
+        if (moduleID && !isNaN(moduleID) && parseInt(moduleID, 10) > 0) {
+            fetch(`/updatemodules?id=${moduleID}`, { method: 'PUT' })
+                .then(response => {
+                    if (response.ok) {
+                        alert("Module updated");
+                    } else {
+                        alert("Failed to update module");
+                        console.log(response.statusText);
+                    }
+                })
+        } else {
+            alert("Please enter a valid module ID.");
+        }
+    }
+</script>
+<style>
+    button {
+        margin: 10px;
+        padding: 10px;
+        font-size: 16px;
+    }
+    input {
+        margin: 10px;
+        padding: 10px;
+        font-size: 16px;
+        width: 100px;
+    }
+</style>
 </html>

@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Canvas Module Sharer</title>
+</head>
+<body>
+    <h1>Canvas Module Sharer</h1>
+    <button onclick="location.href='/newmodule'">Create New Module</button>
+    <br>
+    <label for="moduleID">Go to module by ID: </label>
+    <input type="number" id="moduleID" name="moduleID" placeholder="1">
+    <button onclick="goToModule()">Go</button>
+</body>
+<script>
+    function goToModule() {
+        const moduleID = document.getElementById("moduleID").value;
+        if (moduleID && !isNaN(moduleID) && parseInt(moduleID, 10) > 0) {
+            window.location.href = `/modules?id=${moduleID}`;
+        } else {
+            alert("Please enter a valid module ID.");
+        }
+    }
+</script>
+<style>
+    button {
+        margin: 10px;
+        padding: 10px;
+        font-size: 16px;
+    }
+    input {
+        margin: 10px;
+        padding: 10px;
+        font-size: 16px;
+        width: 100px;
+    }
+</style>
+</html>

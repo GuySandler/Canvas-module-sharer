@@ -58,19 +58,29 @@ app.get("/new", (req, res) => {
 
 // api
 async function getCanvasModules(canvasURL, courseID, canvasAPIkey, teacher, courseName) {
-    const url = `${canvasURL}/api/v1/courses/${courseID}/modules?include[]=items`;
-    const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-            'Authorization': `Bearer ${canvasAPIkey}`,
-            'Content-Type': 'application/json'
+    try {
+        const url = `${canvasURL}/api/v1/courses/${courseID}/modules?include[]=items`;
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${canvasAPIkey}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
         }
-    });
-    const modules = await response.json();
-    const prepedInster = db.prepare(`INSERT INTO modules (course, teacher, content, apikey, canvasurl, courseid) VALUES (?, ?, ?, ?, ?, ?)`);
-    prepedInster.run(courseName, teacher, JSON.stringify(modules[0]), canvasAPIkey, canvasURL, courseID);
-    
-    return modules;
+        
+        const modules = await response.json();
+        const prepedInster = db.prepare(`INSERT INTO modules (course, teacher, content, apikey, canvasurl, courseid) VALUES (?, ?, ?, ?, ?, ?)`);
+        prepedInster.run(courseName, teacher, JSON.stringify(modules), canvasAPIkey, canvasURL, courseID);
+        
+        return modules;
+    } catch (error) {
+        console.error('Error fetching Canvas modules:', error);
+        throw error;
+    }
 }
 app.get("/newmodule", async (req, res) => {
     const { canvasURL, courseID, canvasAPIkey, teacher, courseName } = req.query;
@@ -79,25 +89,34 @@ app.get("/newmodule", async (req, res) => {
     res.send(modules);
 })
 async function updateModules(id) {
-    // only select needed vars
-    const row = db.prepare('SELECT canvasurl, courseid, apikey, FROM modules WHERE id = ?').get(id);
-    if (!row) {
-        console.error("No module found with id:", id);
-        return "No module found";
-    }
-    const { canvasurl, courseid, apikey } = row;
-    const url = `${canvasurl}/api/v1/courses/${courseid}/modules?include[]=items`;
-    const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-            'Authorization': `Bearer ${apikey}`,
-            'Content-Type': 'application/json'
+    try {
+        const row = db.prepare('SELECT canvasurl, courseid, apikey FROM modules WHERE id = ?').get(id);
+        if (!row) {
+            console.error("No module found with id:", id);
+            return "No module found";
         }
-    });
-    const dbprep = db.prepare('UPDATE modules SET content = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?');
-    const modules = await response.json();
-    dbprep.run(JSON.stringify(modules[0]), id);
-    return "Module updated";
+        const { canvasurl, courseid, apikey } = row;
+        const url = `${canvasurl}/api/v1/courses/${courseid}/modules?include[]=items`;
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${apikey}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const dbprep = db.prepare('UPDATE modules SET content = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?');
+        const modules = await response.json();
+        dbprep.run(JSON.stringify(modules), id);
+        return "Module updated";
+    } catch (error) {
+        console.error('Error updating modules:', error);
+        throw error;
+    }
 };
 app.put("/updatemodules", async (req, res) => {
     const { id } = req.query;
