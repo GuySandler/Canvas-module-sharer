@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>Module</title>
+</head>
+<body>
+<h1 id="loading">Getting Module Data...</h1>
+<div id="module">
+
+</div>
+</body>
+<script>
+	let moduleData;
+	async function getData() {
+		const res = await fetch("/moduledata?id=" + new URLSearchParams(window.location.search).get("id"));
+		moduleData = await res.json();
+		document.getElementById("loading").innerText = "Done";
+		console.log(moduleData);
+	}
+
+	async function init() {
+		await getData();
+		
+		const module = document.getElementById("module");
+		module.innerHTML = `
+			<h2>Course: ${moduleData.course}</h2>
+			<h2>Teacher: ${moduleData.teacher}</h2>
+			<h3>Created At: ${new Date(moduleData.createdAt).toLocaleString()}</h3>
+			<h3>Last Updated At: ${new Date(moduleData.updatedAt).toLocaleString()}</h3>
+			<div id="modulecontent"></div>
+		`
+		// const moduleContent = JSON.parse(moduleData.content);
+		const moduleContent = moduleData.content;
+		const moduleContentDiv = document.getElementById("modulecontent");
+		for (const section of moduleContent) {
+			console.log(section);
+		}
+
+	}
+	
+	init();
+</script>
+</html>

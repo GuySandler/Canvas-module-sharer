@@ -9,7 +9,7 @@ const port = process.env.port || 3001;
 app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
-const db = require('better-sqlite3')('database.db');
+const db = require("better-sqlite3")("database.db");
 
 const initDatabase = () => {
     try {
@@ -24,7 +24,22 @@ const initDatabase = () => {
                 courseid TEXT NOT NULL,
                 createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
                 updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
+            );
+			CREATE TABLE IF NOT EXISTS module_pages (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				module_id INTEGER NOT NULL,
+				title TEXT NOT NULL,
+				type TEXT NOT NULL,
+				content TEXT,
+				createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+			);
+			CREATE TABLE IF NOT EXISTS module_files (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				page_id INTEGER NOT NULL,
+				title TEXT NOT NULL,
+				file BLOB NOT NULL,
+				createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+			);
         `);
         console.log("Database initialized successfully");
     } catch (error) {
@@ -44,14 +59,28 @@ app.get("/admin", (req, res) => {
         res.status(403).json({ error: "Forbidden", message: "Invalid password" });
     }
 });
+function getModulebyID(id) {
+	const row = db.prepare("SELECT * FROM modules WHERE id = ?").get(id);
+	const { teacher, course, content, createdAt, updatedAt } = row;
+	return { teacher, course, content: JSON.parse(content), createdAt, updatedAt };
+}
 app.get("/modules", (req, res) => {
     if (!req.query.id || req.query.id.trim() === "" || isNaN(req.query.id) || parseInt(req.query.id, 10) <= 0) {
         res.status(400).send("Invalid or missing id parameter. " + req.query.id);
         return;
     }
     const id = parseInt(req.query.id, 10);
-    res.send("TODO get module: " + id);
+    res.sendFile(__dirname + "/frontend/module.html");
 });
+app.get("/moduledata", (req, res) => {
+	if (!req.query.id || req.query.id.trim() === "" || isNaN(req.query.id) || parseInt(req.query.id, 10) <= 0) {
+		res.status(400).send("Invalid or missing id parameter. " + req.query.id);
+		return;
+	}
+	const id = parseInt(req.query.id, 10);
+	const moduleData = getModulebyID(id);
+	res.json(moduleData);
+})
 app.get("/new", (req, res) => {
     res.sendFile(__dirname + "/frontend/new.html");
 });
@@ -61,10 +90,10 @@ async function getCanvasModules(canvasURL, courseID, canvasAPIkey, teacher, cour
     try {
         const url = `${canvasURL}/api/v1/courses/${courseID}/modules?include[]=items`;
         const response = await fetch(url, {
-            method: 'GET',
+            method: "GET",
             headers: {
-                'Authorization': `Bearer ${canvasAPIkey}`,
-                'Content-Type': 'application/json'
+                "Authorization": `Bearer ${canvasAPIkey}`,
+                "Content-Type": "application/json"
             }
         });
         
@@ -78,19 +107,97 @@ async function getCanvasModules(canvasURL, courseID, canvasAPIkey, teacher, cour
         
         return modules;
     } catch (error) {
-        console.error('Error fetching Canvas modules:', error);
+        console.error("Error fetching Canvas modules:", error);
         throw error;
     }
+}
+async function getCanvasPages(canvasURL, courseID, canvasAPIkey, pageURL, type, module_id) {
+	const url = `${canvasURL}/api/v1/courses/${courseID}/pages/${pageURL}`;
+	const response = await fetch(url, {
+		method: "GET",
+		headers: {
+			Authorization: `Bearer ${canvasAPIkey}`,
+			"Content-Type": "application/json",
+		},
+	});
+
+	if (!response.ok) {
+		console.error(
+			`Error fetching page ${pageURL}: ${response.status} ${response.statusText}`
+		);
+		return null;
+	}
+
+	const page = await response.json();
+	// console.log(`Page data for ${pageURL}:`, page);
+	const preppedInsert = db.prepare(
+		`INSERT INTO module_pages (module_id, title, type, content) VALUES (?, ?, ?, ?)`
+	);
+	preppedInsert.run(module_id, page.title, type, page.body); // TODO strip down body even more
+	if (page.body.includes("data-api-endpoint")) {
+		const fileLinks = [...page.body.matchAll(/<a[^>]*data-api-endpoint="([^"]+)"[^>]*>/g)];
+		console.log(`Found ${fileLinks.length} file links`);
+		
+		for (const link of fileLinks) {
+			const apiEndpoint = link[1];
+			console.log(`Processing file from API endpoint: ${apiEndpoint}`);
+			
+			try {
+				const gotFile = await getFileDownloadLink(
+					canvasURL,
+					courseID,
+					canvasAPIkey,
+					apiEndpoint
+				);
+				if (gotFile) {
+					const downloadLink = gotFile.url;
+					const filePreppedInsert = db.prepare(`INSERT INTO module_files (page_id, title, file) VALUES (?, ?, ?)`);
+					filePreppedInsert.run(module_id, gotFile.display_name, downloadLink);
+					console.log(`Inserted file: ${gotFile.display_name}`);
+				}
+			} catch (error) {
+				console.error(`Error processing file: ${error}`);
+			}
+		}
+	}
+	return page;
+}
+async function getFileDownloadLink(canvasURL, courseID, canvasAPIkey, apiEndpointURL) {
+	const response = await fetch(apiEndpointURL, {
+		method: "GET",
+		headers: {
+			Authorization: `Bearer ${canvasAPIkey}`,
+			"Content-Type": "application/json",
+		},
+	});
+
+	if (!response.ok) {
+		console.error(`Error fetching file from ${apiEndpointURL}: ${response.status} ${response.statusText}`);
+		return null;
+	}
+	
+	const file = await response.json();
+	return file;
 }
 app.get("/newmodule", async (req, res) => {
     const { canvasURL, courseID, canvasAPIkey, teacher, courseName } = req.query;
     // console.log(canvasURL, courseID, canvasAPIkey);
     const modules = await getCanvasModules(canvasURL, courseID, canvasAPIkey, teacher, courseName);
+
+	for (const category of modules) {
+		for (const item of category.items) {
+			const { type, url } = item;
+			if (type === 'Page' && url) {
+				await getCanvasPages(canvasURL, courseID, canvasAPIkey, url.split('/').pop(), type, item.id);
+			}
+		}
+	}
+	
     res.send(modules);
 })
 async function updateModules(id) {
     try {
-        const row = db.prepare('SELECT canvasurl, courseid, apikey FROM modules WHERE id = ?').get(id);
+        const row = db.prepare("SELECT canvasurl, courseid, apikey FROM modules WHERE id = ?").get(id);
         if (!row) {
             console.error("No module found with id:", id);
             return "No module found";
@@ -98,10 +205,10 @@ async function updateModules(id) {
         const { canvasurl, courseid, apikey } = row;
         const url = `${canvasurl}/api/v1/courses/${courseid}/modules?include[]=items`;
         const response = await fetch(url, {
-            method: 'GET',
+            method: "GET",
             headers: {
-                'Authorization': `Bearer ${apikey}`,
-                'Content-Type': 'application/json'
+                "Authorization": `Bearer ${apikey}`,
+                "Content-Type": "application/json"
             }
         });
         
@@ -109,12 +216,12 @@ async function updateModules(id) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
         
-        const dbprep = db.prepare('UPDATE modules SET content = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?');
+        const dbprep = db.prepare("UPDATE modules SET content = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?");
         const modules = await response.json();
         dbprep.run(JSON.stringify(modules), id);
         return "Module updated";
     } catch (error) {
-        console.error('Error updating modules:', error);
+        console.error("Error updating modules:", error);
         throw error;
     }
 };
@@ -122,6 +229,19 @@ app.put("/updatemodules", async (req, res) => {
     const { id } = req.query;
     const response = await updateModules(id);
     res.send(response);
+});
+app.get("/filetest", async (req, res) => { // delete later, works
+	const { canvasURL, courseID, canvasAPIkey, fileURL } = req.query;
+	const url = `${canvasURL}/api/v1/courses/${courseID}/files/${fileURL.split('/').slice(-1)[0].split('?')[0]}`;
+	const response = await fetch(url, {
+		method: "GET",
+		headers: {
+			Authorization: `Bearer ${canvasAPIkey}`,
+			"Content-Type": "application/json",
+		},
+	});
+	const file = await response.json();
+	res.send(file);
 });
 
 app.listen(port, () => {
