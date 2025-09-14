@@ -181,6 +181,13 @@ async function getFileDownloadLink(canvasURL, courseID, canvasAPIkey, apiEndpoin
 app.get("/newmodule", async (req, res) => {
     const { canvasURL, courseID, canvasAPIkey, teacher, courseName } = req.query;
     // console.log(canvasURL, courseID, canvasAPIkey);
+
+	const existing = db.prepare("SELECT * FROM modules WHERE teacher = ? AND course = ?").get(teacher, courseName);
+	if (existing) {
+		res.status(400).json({ error: "Module already exists for this teacher and course." });
+		return;
+	}
+
     const modules = await getCanvasModules(canvasURL, courseID, canvasAPIkey, teacher, courseName);
 
 	for (const category of modules) {
@@ -189,13 +196,13 @@ app.get("/newmodule", async (req, res) => {
 			if (type === "Page" && url) {
 				await getCanvasPages(canvasURL, courseID, canvasAPIkey, url, type, item.id);
 			} else if (type === "File" && url) {
-				console.log(`Processing file: ${title} from ${url}`);
+				// console.log(`Processing file: ${title} from ${url}`);
 				try {
 					const fileData = await getFileDownloadLink(canvasURL, courseID, canvasAPIkey, url);
 					if (fileData) {
 						const filePreppedInsert = db.prepare(`INSERT INTO module_files (page_id, title, file) VALUES (?, ?, ?)`);
 						filePreppedInsert.run(item.id, fileData.display_name, fileData.url);
-						console.log(`Inserted file: ${fileData.display_name}`);
+						// console.log(`Inserted file: ${fileData.display_name}`);
 					}
 				} catch (error) {
 					console.error(`Error processing file ${title}: ${error}`);
@@ -222,7 +229,7 @@ async function updateModules(id) {
                 "Content-Type": "application/json"
             }
         });
-        
+
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -230,6 +237,45 @@ async function updateModules(id) {
         const dbprep = db.prepare("UPDATE modules SET content = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?");
         const modules = await response.json();
         dbprep.run(JSON.stringify(modules), id);
+
+        const existingModule = db.prepare("SELECT content FROM modules WHERE id = ?").get(id);
+        const oldModules = existingModule ? JSON.parse(existingModule.content) : [];
+        const oldItemIds = [];
+        for (const category of oldModules) {
+            for (const item of category.items) {
+                oldItemIds.push(item.id);
+            }
+        }
+
+        if (oldItemIds.length > 0) {
+            const placeholders = oldItemIds.map(() => '?').join(',');
+            const clearFiles = db.prepare(`DELETE FROM module_files WHERE page_id IN (${placeholders})`);
+            const clearPages = db.prepare(`DELETE FROM module_pages WHERE module_id IN (${placeholders})`);
+            clearFiles.run(...oldItemIds);
+            clearPages.run(...oldItemIds);
+        }
+        
+		for (const category of modules) {
+			for (const item of category.items) {
+				const { type, url } = item;
+				if (type === "Page" && url) {
+					await getCanvasPages(canvasurl, courseid, apikey, url, type, item.id);
+				}
+				else if (type === "File" && url) {
+					// console.log(`Processing file: ${item.title} from ${url}`);
+					try {
+						const fileData = await getFileDownloadLink(canvasurl, courseid, apikey, url);
+						if (fileData) {
+							const filePreppedInsert = db.prepare(`INSERT INTO module_files (page_id, title, file) VALUES (?, ?, ?)`);
+							filePreppedInsert.run(item.id, fileData.display_name, fileData.url);
+							// console.log(`Inserted file: ${fileData.display_name}`);
+						}
+					} catch (error) {
+						console.error(`Error processing file ${item.title}: ${error}`);
+					}
+				}
+			}
+		}
         return "Module updated";
     } catch (error) {
         console.error("Error updating modules:", error);

@@ -13,6 +13,7 @@
 </body>
 <script>
     function goToUpdateModule() {
+		alert("Updateing module, this may take some time...")
         const moduleID = document.getElementById("updateModuleID").value;
         if (moduleID && !isNaN(moduleID) && parseInt(moduleID, 10) > 0) {
             fetch(`/updatemodules?id=${moduleID}`, { method: 'PUT' })

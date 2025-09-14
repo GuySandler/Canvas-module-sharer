@@ -7,3 +7,7 @@ files:
 
 module types:
 File, Page, SubHeader (just text), Assignment (should be simmilar to page)
+
+TODO:
+better styling
+admin remove by ID

@@ -7,6 +7,7 @@
 <body>
 <h1 id="loading">Getting Module Data...</h1>
 <div>
+	<div id="moduleHeader" style="line-height: 0;"></div>
 	<div id="module" style="overflow-y:auto; max-height: 90%;">
 
 	</div>
@@ -18,6 +19,7 @@
 		const res = await fetch("/moduledata?id=" + new URLSearchParams(window.location.search).get("id"));
 		moduleData = await res.json();
 		document.getElementById("loading").innerText = "Done";
+		document.getElementById("loading").style.display = "none";
 		// console.log(moduleData);
 	}
 
@@ -25,36 +27,43 @@
 		await getData();
 		
 		const module = document.getElementById("module");
-		module.innerHTML = `
-			<h2>Course: ${moduleData.course}</h2>
-			<h2>Teacher: ${moduleData.teacher}</h2>
-			<h3>Created At: ${new Date(moduleData.createdAt).toLocaleString()}</h3>
-			<h3>Last Updated At: ${new Date(moduleData.updatedAt).toLocaleString()}</h3>
-			<div id="modulecontent"></div>
+		const moduleHeader = document.getElementById("moduleHeader");
+		moduleHeader.innerHTML = `
+			<h2 style="display:inline-block">${moduleData.course} by ${moduleData.teacher}</h2><br>
+			<h4 style="display:inline-block">Created At: ${new Date(moduleData.createdAt).toLocaleString()}</h4><br>
+			<h4 style="display:inline-block">Last Updated At: ${new Date(moduleData.updatedAt).toLocaleString()}</h4>
 		`
 		// const moduleContent = JSON.parse(moduleData.content);
 		const moduleContent = moduleData.content;
 		// console.log(moduleContent);
-		const moduleContentDiv = document.getElementById("modulecontent");
+		const moduleContentDiv = document.getElementById("module");
 		for (const category of moduleContent) {
-			console.log(category);
+			// console.log(category);
+			const sectionTitle = document.createElement("h2");
+			sectionTitle.innerText = category.name;
+			moduleContentDiv.appendChild(sectionTitle);
 			const sectionDiv = document.createElement("div");
-			sectionDiv.innerHTML = `<h2>${category.name}</h2>`;
+			const formattedSectionName = category.name.replace(/\s+/g, '-').toLowerCase();
+			sectionDiv.id = formattedSectionName;
+			sectionDiv.style.position = "relative";
+			sectionDiv.style.left = "20px";
+			sectionDiv.style.width = "fit-content";
 			moduleContentDiv.appendChild(sectionDiv);
+
 			for (const item of category.items) {
 				switch (item.type) {
 					case "SubHeader":
 						const subheaderDiv = document.createElement("div");
 						subheaderDiv.innerHTML = `<h3>${item.title}</h3>`;
-						moduleContentDiv.appendChild(subheaderDiv);
+						document.getElementById(formattedSectionName).appendChild(subheaderDiv);
 						break;
 					case "File":
 						const fileDiv = document.createElement("div");
 						const fileLinkRes = await fetch("/modulefiles?page_id=" + item.id);
 						const fileLinkData = await fileLinkRes.json();
-						console.log(item.id, fileLinkData);
-						fileDiv.innerHTML = `<button onclick="window.open('${fileLinkData[0].file}', '_blank')">${item.title} (${item.type})</button>`;
-						moduleContentDiv.appendChild(fileDiv);
+						// console.log(item.id, fileLinkData);
+						fileDiv.innerHTML = `<button style="margin-left: 20px;margin-bottom: 10px;" onclick="window.open('${fileLinkData[0].file}', '_blank')">Download ${item.title}</button>`;
+						document.getElementById(formattedSectionName).appendChild(fileDiv);
 						break;
 					case "Page":
 						const pageDiv = document.createElement("div");
@@ -62,7 +71,7 @@
 						const pageData = await pageDataRes.json();
 						const pageFilesRes = await fetch("/modulefiles?page_id=" + item.id);
 						const pageFilesData = await pageFilesRes.json();
-						console.log(item.id, pageData[0]);
+						// console.log(item.id, pageData[0]);
 						let pageContent =  pageData[0].content;
 						const parser = new DOMParser();
 						const ContentDoc = parser.parseFromString(pageContent, 'text/html');
@@ -76,21 +85,15 @@
 							i++;
 						}
 						pageContent = ContentDoc.documentElement.innerHTML;
-						pageDiv.innerHTML = `<h3>${item.title} (${item.type})</h3><div>${pageContent}</div>`;
+						pageDiv.innerHTML = `<h3>${item.title}</h3><div>${pageContent}</div>`;
 						pageDiv.style.border = "1px solid black";
-						moduleContentDiv.appendChild(pageDiv);
+						pageDiv.style.width = "fit-content";
+						pageDiv.style.padding = "10px";
+						pageDiv.style.marginLeft = "20px";
+						pageDiv.style.marginBottom = "10px";
+						document.getElementById(formattedSectionName).appendChild(pageDiv);
 						break;
 				}
-
-				// original code, delete later
-				// const pageDataRes = await fetch("/modulepage?module_id=" + item.id);
-				// const pageData = await pageDataRes.json();
-				// // console.log(item.id, pageData[0]);
-				// // TODO: if undefined it's just a file download and make the pages openable with popup and set innerhtml to content
-				// const pageDiv = document.createElement("div");
-				// pageDiv.innerHTML = `<button>${item.title} (${item.type})</button>`;
-				// moduleContentDiv.appendChild(pageDiv);
-
 			}
 		}
 
