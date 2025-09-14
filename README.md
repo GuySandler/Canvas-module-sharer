@@ -6,8 +6,9 @@ files:
 2. <iframe> src for video, no API (maybe just leave the page as is)
 
 module types:
-File, Page, SubHeader (just text), Assignment (should be simmilar to page)
+File, Page, SubHeader (just text), Assignment (should be simmilar to page, idk if I should add)
 
 TODO:
 better styling
 admin remove by ID
+collapsable categories and subcatagories and pages that stay
