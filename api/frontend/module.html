@@ -6,8 +6,10 @@
 </head>
 <body>
 <h1 id="loading">Getting Module Data...</h1>
-<div id="module">
+<div>
+	<div id="module" style="overflow-y:auto; max-height: 90%;">
 
+	</div>
 </div>
 </body>
 <script>
@@ -16,7 +18,7 @@
 		const res = await fetch("/moduledata?id=" + new URLSearchParams(window.location.search).get("id"));
 		moduleData = await res.json();
 		document.getElementById("loading").innerText = "Done";
-		console.log(moduleData);
+		// console.log(moduleData);
 	}
 
 	async function init() {
@@ -32,9 +34,64 @@
 		`
 		// const moduleContent = JSON.parse(moduleData.content);
 		const moduleContent = moduleData.content;
+		// console.log(moduleContent);
 		const moduleContentDiv = document.getElementById("modulecontent");
-		for (const section of moduleContent) {
-			console.log(section);
+		for (const category of moduleContent) {
+			console.log(category);
+			const sectionDiv = document.createElement("div");
+			sectionDiv.innerHTML = `<h2>${category.name}</h2>`;
+			moduleContentDiv.appendChild(sectionDiv);
+			for (const item of category.items) {
+				switch (item.type) {
+					case "SubHeader":
+						const subheaderDiv = document.createElement("div");
+						subheaderDiv.innerHTML = `<h3>${item.title}</h3>`;
+						moduleContentDiv.appendChild(subheaderDiv);
+						break;
+					case "File":
+						const fileDiv = document.createElement("div");
+						const fileLinkRes = await fetch("/modulefiles?page_id=" + item.id);
+						const fileLinkData = await fileLinkRes.json();
+						console.log(item.id, fileLinkData);
+						fileDiv.innerHTML = `<button onclick="window.open('${fileLinkData[0].file}', '_blank')">${item.title} (${item.type})</button>`;
+						moduleContentDiv.appendChild(fileDiv);
+						break;
+					case "Page":
+						const pageDiv = document.createElement("div");
+						const pageDataRes = await fetch("/modulepage?module_id=" + item.id);
+						const pageData = await pageDataRes.json();
+						const pageFilesRes = await fetch("/modulefiles?page_id=" + item.id);
+						const pageFilesData = await pageFilesRes.json();
+						console.log(item.id, pageData[0]);
+						let pageContent =  pageData[0].content;
+						const parser = new DOMParser();
+						const ContentDoc = parser.parseFromString(pageContent, 'text/html');
+						const aTags = ContentDoc.getElementsByTagName("a");
+						let i = 0;
+						for (const aTag of aTags) {
+							if (pageFilesData[i]) {
+								aTag.href = pageFilesData[i].file;
+								aTag.target = "_blank";
+							}
+							i++;
+						}
+						pageContent = ContentDoc.documentElement.innerHTML;
+						pageDiv.innerHTML = `<h3>${item.title} (${item.type})</h3><div>${pageContent}</div>`;
+						pageDiv.style.border = "1px solid black";
+						moduleContentDiv.appendChild(pageDiv);
+						break;
+				}
+
+				// original code, delete later
+				// const pageDataRes = await fetch("/modulepage?module_id=" + item.id);
+				// const pageData = await pageDataRes.json();
+				// // console.log(item.id, pageData[0]);
+				// // TODO: if undefined it's just a file download and make the pages openable with popup and set innerhtml to content
+				// const pageDiv = document.createElement("div");
+				// pageDiv.innerHTML = `<button>${item.title} (${item.type})</button>`;
+				// moduleContentDiv.appendChild(pageDiv);
+
+			}
 		}
 
 	}

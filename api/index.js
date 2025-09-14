@@ -37,7 +37,7 @@ const initDatabase = () => {
 				id INTEGER PRIMARY KEY AUTOINCREMENT,
 				page_id INTEGER NOT NULL,
 				title TEXT NOT NULL,
-				file BLOB NOT NULL,
+				file TEXT NOT NULL,
 				createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
 			);
         `);
@@ -112,8 +112,7 @@ async function getCanvasModules(canvasURL, courseID, canvasAPIkey, teacher, cour
     }
 }
 async function getCanvasPages(canvasURL, courseID, canvasAPIkey, pageURL, type, module_id) {
-	const url = `${canvasURL}/api/v1/courses/${courseID}/pages/${pageURL}`;
-	const response = await fetch(url, {
+	const response = await fetch(pageURL, {
 		method: "GET",
 		headers: {
 			Authorization: `Bearer ${canvasAPIkey}`,
@@ -136,11 +135,11 @@ async function getCanvasPages(canvasURL, courseID, canvasAPIkey, pageURL, type, 
 	preppedInsert.run(module_id, page.title, type, page.body); // TODO strip down body even more
 	if (page.body.includes("data-api-endpoint")) {
 		const fileLinks = [...page.body.matchAll(/<a[^>]*data-api-endpoint="([^"]+)"[^>]*>/g)];
-		console.log(`Found ${fileLinks.length} file links`);
+		// console.log(`Found ${fileLinks.length} file links`);
 		
 		for (const link of fileLinks) {
 			const apiEndpoint = link[1];
-			console.log(`Processing file from API endpoint: ${apiEndpoint}`);
+			// console.log(`Processing file from API endpoint: ${apiEndpoint}`);
 			
 			try {
 				const gotFile = await getFileDownloadLink(
@@ -153,7 +152,7 @@ async function getCanvasPages(canvasURL, courseID, canvasAPIkey, pageURL, type, 
 					const downloadLink = gotFile.url;
 					const filePreppedInsert = db.prepare(`INSERT INTO module_files (page_id, title, file) VALUES (?, ?, ?)`);
 					filePreppedInsert.run(module_id, gotFile.display_name, downloadLink);
-					console.log(`Inserted file: ${gotFile.display_name}`);
+					// console.log(`Inserted file: ${gotFile.display_name}`);
 				}
 			} catch (error) {
 				console.error(`Error processing file: ${error}`);
@@ -186,9 +185,21 @@ app.get("/newmodule", async (req, res) => {
 
 	for (const category of modules) {
 		for (const item of category.items) {
-			const { type, url } = item;
-			if (type === 'Page' && url) {
-				await getCanvasPages(canvasURL, courseID, canvasAPIkey, url.split('/').pop(), type, item.id);
+			const { type, url, title } = item;
+			if (type === "Page" && url) {
+				await getCanvasPages(canvasURL, courseID, canvasAPIkey, url, type, item.id);
+			} else if (type === "File" && url) {
+				console.log(`Processing file: ${title} from ${url}`);
+				try {
+					const fileData = await getFileDownloadLink(canvasURL, courseID, canvasAPIkey, url);
+					if (fileData) {
+						const filePreppedInsert = db.prepare(`INSERT INTO module_files (page_id, title, file) VALUES (?, ?, ?)`);
+						filePreppedInsert.run(item.id, fileData.display_name, fileData.url);
+						console.log(`Inserted file: ${fileData.display_name}`);
+					}
+				} catch (error) {
+					console.error(`Error processing file ${title}: ${error}`);
+				}
 			}
 		}
 	}
@@ -242,6 +253,16 @@ app.get("/filetest", async (req, res) => { // delete later, works
 	});
 	const file = await response.json();
 	res.send(file);
+});
+app.get("/modulepage", async (req, res) => {
+	const { module_id } = req.query;
+	const row = db.prepare("SELECT * FROM module_pages WHERE module_id = ?").all(module_id);
+	res.json(row);
+});
+app.get("/modulefiles", async (req, res) => {
+	const { page_id } = req.query;
+	const row = db.prepare("SELECT * FROM module_files WHERE page_id = ?").all(page_id);
+	res.json(row);
 });
 
 app.listen(port, () => {
