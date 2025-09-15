@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
-    <title>Module</title>
+    <title>Module Viewer</title>
 </head>
 <body>
 <h1 id="loading">Getting Module Data...</h1>
@@ -38,6 +38,42 @@
 	}
 </style>
 <script>
+	function updateCollapsedSections(sectionID, collapse) {
+		const moduleID = new URLSearchParams(window.location.search).get("id");
+		const stored = localStorage.getItem("collapsedSectionsByID");
+		let data = stored ? JSON.parse(stored) : [];
+
+		let moduleData = data.find(module => module.moduleID === moduleID);
+		if (!moduleData) {
+			moduleData = { moduleID: moduleID, collapsedSectionIDs: [] };
+			data.push(moduleData);
+		}
+
+		if (collapse) {
+			if (!moduleData.collapsedSectionIDs.includes(sectionID)) {
+				moduleData.collapsedSectionIDs.push(sectionID);
+			}
+		} else {
+			const index = moduleData.collapsedSectionIDs.indexOf(sectionID);
+			if (index !== -1) {
+				moduleData.collapsedSectionIDs.splice(index, 1);
+			}
+		}
+		
+		localStorage.setItem("collapsedSectionsByID", JSON.stringify(data));
+	}
+	function collapseExpand(itemID) {
+		const item = document.getElementById(itemID);
+		// console.log(itemID, item);
+		if (item.style.display === "none") {
+			item.style.display = "block";
+			updateCollapsedSections(itemID, false);
+		} else {
+			item.style.display = "none";
+			updateCollapsedSections(itemID, true);
+		}
+	}
+
 	let moduleData;
 	async function getData() {
 		const res = await fetch("/moduledata?id=" + new URLSearchParams(window.location.search).get("id"));
@@ -63,11 +99,11 @@
 		const moduleContentDiv = document.getElementById("module");
 		for (const category of moduleContent) {
 			// console.log(category);
-			const sectionTitle = document.createElement("h2");
-			sectionTitle.innerText = category.name;
+			const sectionTitle = document.createElement("div");
+			const formattedSectionName = category.name.replace(/\s+/g, '-').toLowerCase();
+			sectionTitle.innerHTML = `<h2 style="cursor: pointer;" onclick="collapseExpand('${formattedSectionName}')">${category.name}</h2>`;
 			moduleContentDiv.appendChild(sectionTitle);
 			const sectionDiv = document.createElement("div");
-			const formattedSectionName = category.name.replace(/\s+/g, '-').toLowerCase();
 			sectionDiv.id = formattedSectionName;
 			sectionDiv.style.position = "relative";
 			sectionDiv.style.left = "20px";
@@ -110,7 +146,8 @@
 							i++;
 						}
 						pageContent = ContentDoc.documentElement.innerHTML;
-						pageDiv.innerHTML = `<h3>${item.title}</h3><div>${pageContent}</div>`;
+						const FormattedPageName = item.title.replace(/\s+/g, '-').toLowerCase();
+						pageDiv.innerHTML = `<h3 style="cursor: pointer;" onclick="collapseExpand('${FormattedPageName}')">${item.title}</h3><div id="${FormattedPageName}">${pageContent}</div>`;
 						pageDiv.style.border = "1px solid gray";
 						pageDiv.style.borderRadius = "4px";
 						pageDiv.style.width = "fit-content";
@@ -123,6 +160,31 @@
 			}
 		}
 
+		// Restore collapsed sections from localStorage after DOM is built
+		restoreCollapsedSections();
+	}
+	
+	function restoreCollapsedSections() {
+		const moduleID = new URLSearchParams(window.location.search).get("id");
+		
+		if (!localStorage.getItem("collapsedSectionsByID")) {
+			localStorage.setItem("collapsedSectionsByID", JSON.stringify([{
+				moduleID: moduleID,
+				collapsedSectionIDs: []
+			}]));
+		} else {
+			const data = JSON.parse(localStorage.getItem("collapsedSectionsByID"));
+			const moduleData = data.find(module => module.moduleID === moduleID);
+			
+			if (moduleData && moduleData.collapsedSectionIDs) {
+				for (const sectionID of moduleData.collapsedSectionIDs) {
+					const section = document.getElementById(sectionID);
+					if (section) {
+						section.style.display = "none";
+					}
+				}
+			}
+		}
 	}
 	
 	init();
