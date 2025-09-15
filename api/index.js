@@ -283,22 +283,16 @@ async function updateModules(id) {
     }
 };
 app.put("/updatemodules", async (req, res) => {
-    const { id } = req.query;
+    const { id, password } = req.query;
+	if (password !== process.env.adminpassword) {
+		res.status(403).json({
+			error: "Forbidden",
+			message: "Invalid password",
+		});
+		return;
+	}
     const response = await updateModules(id);
     res.send(response);
-});
-app.get("/filetest", async (req, res) => { // delete later, works
-	const { canvasURL, courseID, canvasAPIkey, fileURL } = req.query;
-	const url = `${canvasURL}/api/v1/courses/${courseID}/files/${fileURL.split('/').slice(-1)[0].split('?')[0]}`;
-	const response = await fetch(url, {
-		method: "GET",
-		headers: {
-			Authorization: `Bearer ${canvasAPIkey}`,
-			"Content-Type": "application/json",
-		},
-	});
-	const file = await response.json();
-	res.send(file);
 });
 app.get("/modulepage", async (req, res) => {
 	const { module_id } = req.query;
@@ -309,6 +303,32 @@ app.get("/modulefiles", async (req, res) => {
 	const { page_id } = req.query;
 	const row = db.prepare("SELECT * FROM module_files WHERE page_id = ?").all(page_id);
 	res.json(row);
+});
+app.delete("/deletemodule", (req, res) => {
+	const { id, password } = req.query;
+	if (password !== process.env.adminpassword) {
+		res.status(403).json({ error: "Forbidden", message: "Invalid password" });
+		return;
+	}
+	const module = db.prepare("SELECT * FROM modules WHERE id = ?").get(id);
+	if (!module) {res.status(400).json({ error: "No module found with this id." }); return;}
+	const modules = JSON.parse(module.content);
+	const itemIDs = [];
+	for (const category of modules) {
+		for (const item of category.items) {
+			itemIDs.push(item.id);
+		}
+	}
+	if (itemIDs.length > 0) {
+		const placeholders = itemIDs.map(() => '?').join(',');
+		const clearFiles = db.prepare(`DELETE FROM module_files WHERE page_id IN (${placeholders})`)
+		const clearPages = db.prepare(`DELETE FROM module_pages WHERE module_id IN (${placeholders})`)
+		clearFiles.run(...itemIDs);
+		clearPages.run(...itemIDs);
+	}
+
+	db.prepare("DELETE FROM modules WHERE id = ?").run(id);
+	res.json({ success: true, message: `Module with id ${id} deleted.` });
 });
 
 app.listen(port, () => {

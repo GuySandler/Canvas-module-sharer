@@ -7,16 +7,24 @@
 </head>
 <body>
     <h1>Admin Page</h1>
+	<label for="password">Password: </label>
+	<input type="password" id="password" name="password" placeholder="adminpassword">
+	<br>
     <label for="updateModuleID">Update module by ID: </label>
     <input type="number" id="updateModuleID" name="updateModuleID" placeholder="1">
     <button onclick="goToUpdateModule()">Go</button>
+	<br>
+	<label for="deleteModuleID">Delete module by ID: </label>
+	<input type="number" id="deleteModuleID" name="deleteModuleID" placeholder="1">
+	<button onclick="goToDeleteModule()">Go</button>
 </body>
 <script>
     function goToUpdateModule() {
 		alert("Updateing module, this may take some time...")
+		const password = document.getElementById("password").value;
         const moduleID = document.getElementById("updateModuleID").value;
         if (moduleID && !isNaN(moduleID) && parseInt(moduleID, 10) > 0) {
-            fetch(`/updatemodules?id=${moduleID}`, { method: 'PUT' })
+            fetch(`/updatemodules?id=${moduleID}&password=${password}`, { method: 'PUT' })
                 .then(response => {
                     if (response.ok) {
                         alert("Module updated");
@@ -29,6 +37,23 @@
             alert("Please enter a valid module ID.");
         }
     }
+	function goToDeleteModule() {
+		const moduleID = document.getElementById("deleteModuleID").value;
+		const password = document.getElementById("password").value;
+		if (moduleID && !isNaN(moduleID) && parseInt(moduleID, 10) > 0) {
+			if (confirm("are you sure you want to delete module with ID " + moduleID + "?")) {
+				fetch(`/deletemodule?id=${moduleID}&password=${password}`, { method: 'DELETE' })
+					.then(response => {
+						if (response.ok) {
+							alert("Module deleted");
+						} else {
+							alert("Failed to delete module");
+							console.log(response.statusText);
+						}
+					})
+			}
+		}
+	}
 </script>
 <style>
     button {
