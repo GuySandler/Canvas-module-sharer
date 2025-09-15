@@ -61,8 +61,13 @@ app.get("/admin", (req, res) => {
 });
 function getModulebyID(id) {
 	const row = db.prepare("SELECT * FROM modules WHERE id = ?").get(id);
-	const { teacher, course, content, createdAt, updatedAt } = row;
-	return { teacher, course, content: JSON.parse(content), createdAt, updatedAt };
+	try {
+		const { teacher, course, content, createdAt, updatedAt } = row;
+		return { teacher, course, content: JSON.parse(content), createdAt, updatedAt };
+	} catch (error) {
+		console.error("Error getting module by ID:", error);
+		return null;
+	}
 }
 app.get("/modules", (req, res) => {
     if (!req.query.id || req.query.id.trim() === "" || isNaN(req.query.id) || parseInt(req.query.id, 10) <= 0) {
@@ -79,6 +84,10 @@ app.get("/moduledata", (req, res) => {
 	}
 	const id = parseInt(req.query.id, 10);
 	const moduleData = getModulebyID(id);
+	if (!moduleData) {
+		res.status(404).json({ error: "Module not found" });
+		return;
+	}
 	res.json(moduleData);
 })
 app.get("/new", (req, res) => {
